@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>投資模擬器</title>
-    <!-- 修改 CDN 引用 -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/17.0.2/umd/react.production.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/17.0.2/umd/react-dom.production.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.1.12/Recharts.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/6.26.0/babel.min.js"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <!-- 修改 CDN 順序和版本 -->
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/recharts@2.1.12/umd/Recharts.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6.26.0/babel.min.js"></script>
+    <link href="https://unpkg.com/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
         input[type="number"] {
             width: 100%;
@@ -28,11 +28,14 @@
     <div id="root"></div>
     
     <script type="text/babel">
+        // 確保 Recharts 已被載入
+        console.log('Recharts version:', Recharts.version);
+        
         const { useState } = React;
-        // 修改 Recharts 引用方式
-        const { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } = window.Recharts;
+        // 直接從全域變數獲取 Recharts
+        const { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } = Recharts;
 
-        // [其餘的 App 組件代碼保持不變...]
+        // [App 組件代碼保持不變]
         function App() {
             const [inputs, setInputs] = useState({
                 initialInvestment: 100000,
