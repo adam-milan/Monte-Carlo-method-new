@@ -4,10 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>投資模擬器</title>
-    <!-- 修改 CDN 順序和版本 -->
     <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/recharts@2.1.12/umd/Recharts.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/babel-standalone@6.26.0/babel.min.js"></script>
     <link href="https://unpkg.com/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
@@ -20,6 +19,7 @@
         .chart-container {
             width: 100%;
             height: 300px;
+            position: relative;
             margin: 1rem 0;
         }
     </style>
@@ -28,15 +28,12 @@
     <div id="root"></div>
     
     <script type="text/babel">
-        // 確保 Recharts 已被載入
-        console.log('Recharts version:', Recharts.version);
-        
-        const { useState } = React;
-        // 直接從全域變數獲取 Recharts
-        const { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } = Recharts;
+        const { useState, useEffect, useRef } = React;
 
-        // [App 組件代碼保持不變]
         function App() {
+            const lineChartRef = useRef(null);
+            const barChartRef = useRef(null);
+            const [charts, setCharts] = useState({ line: null, bar: null });
             const [inputs, setInputs] = useState({
                 initialInvestment: 100000,
                 monthlyContribution: 5000,
@@ -119,6 +116,86 @@
                     maximumFractionDigits: 0 
                 }).format(value);
             };
+
+            useEffect(() => {
+                if (results && lineChartRef.current && barChartRef.current) {
+                    // 清理舊的圖表
+                    if (charts.line) charts.line.destroy();
+                    if (charts.bar) charts.bar.destroy();
+
+                    // 創建折線圖
+                    const lineChart = new Chart(lineChartRef.current, {
+                        type: 'line',
+                        data: {
+                            labels: results.timeSeriesData.map(d => `第 ${d.month} 月`),
+                            datasets: [
+                                {
+                                    label: '樂觀估計 (95%)',
+                                    data: results.timeSeriesData.map(d => d.optimistic),
+                                    borderColor: '#10B981',
+                                    tension: 0.1
+                                },
+                                {
+                                    label: '中位數',
+                                    data: results.timeSeriesData.map(d => d.median),
+                                    borderColor: '#3B82F6',
+                                    tension: 0.1
+                                },
+                                {
+                                    label: '保守估計 (5%)',
+                                    data: results.timeSeriesData.map(d => d.conservative),
+                                    borderColor: '#EF4444',
+                                    tension: 0.1
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: {
+                                intersect: false,
+                                mode: 'index'
+                            },
+                            scales: {
+                                y: {
+                                    ticks: {
+                                        callback: value => `${(value/1000000).toFixed(1)}M`
+                                    }
+                                }
+                            },
+                            plugins: {
+                                tooltip: {
+                                    callbacks: {
+                                        label: context => {
+                                            const value = context.raw;
+                                            return `${context.dataset.label}: ${formatCurrency(value)}`;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    // 創建柱狀圖
+                    const barChart = new Chart(barChartRef.current, {
+                        type: 'bar',
+                        data: {
+                            labels: results.histogram.map(d => d.range),
+                            datasets: [{
+                                label: '次數',
+                                data: results.histogram.map(d => d.count),
+                                backgroundColor: '#4f46e5'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false
+                        }
+                    });
+
+                    setCharts({ line: lineChart, bar: barChart });
+                }
+            }, [results]);
 
             return (
                 <div className="max-w-6xl mx-auto p-4 space-y-6">
@@ -237,44 +314,15 @@
 
                             <div className="mb-8">
                                 <h3 className="text-lg font-medium mb-4">投資組合價值變化</h3>
-                                <div style={{ width: '100%', height: 300 }}>
-                                    <LineChart data={results.timeSeriesData}>
-                                        <CartesianGrid strokeDasharray="3 3" />
-                                        <XAxis 
-                                            dataKey="month" 
-                                            label={{ value: '月數', position: 'insideBottom', offset: -5 }}
-                                        />
-                                        <YAxis 
-                                            tickFormatter={(value) => `${(value/1000000).toFixed(1)}M`}
-                                            label={{ value: '投資組合價值', angle: -90, position: 'insideLeft' }}
-                                        />
-                                        <Tooltip 
-                                            formatter={(value) => formatCurrency(value)}
-                                            labelFormatter={(value) => `第 ${value} 個月`}
-                                        />
-                                        <Legend />
-                                        <Line type="monotone" dataKey="optimistic" name="樂觀估計 (95%)" stroke="#10B981" dot={false} />
-                                        <Line type="monotone" dataKey="median" name="中位數" stroke="#3B82F6" dot={false} />
-                                        <Line type="monotone" dataKey="conservative" name="保守估計 (5%)" stroke="#EF4444" dot={false} />
-                                    </LineChart>
+                                <div className="chart-container">
+                                    <canvas ref={lineChartRef}></canvas>
                                 </div>
                             </div>
 
                             <div>
                                 <h3 className="text-lg font-medium mb-4">最終價值分布</h3>
-                                <div style={{ width: '100%', height: 300 }}>
-                                    <BarChart data={results.histogram}>
-                                        <CartesianGrid strokeDasharray="3 3" />
-                                        <XAxis 
-                                            dataKey="range" 
-                                            angle={-45}
-                                            textAnchor="end"
-                                            height={60}
-                                        />
-                                        <YAxis />
-                                        <Tooltip />
-                                        <Bar dataKey="count" fill="#4f46e5" name="次數" />
-                                    </BarChart>
+                                <div className="chart-container">
+                                    <canvas ref={barChartRef}></canvas>
                                 </div>
                             </div>
 
@@ -284,16 +332,3 @@
                                         <p className="text-sm text-blue-700">
                                             此模擬結果僅供參考，實際投資報酬可能會有顯著差異。請謹慎評估您的投資風險承受能力，並考慮尋求專業投資顧問的建議。
                                         </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            );
-        }
-
-        ReactDOM.render(<App />, document.getElementById('root'));
-    </script>
-</body>
-</html>
