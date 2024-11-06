@@ -31,6 +31,287 @@
     <script type="text/babel">
         // 將之前的 React 代碼放在這裡，保持不變
         // 代碼內容與之前相同，這裡省略以避免重複
+        <!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>投資模擬器</title>
+    <!-- 引入必要的 CDN 資源 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/17.0.2/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/17.0.2/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.10.3/Recharts.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/6.26.0/babel.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50">
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState } = React;
+        const { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } = Recharts;
+
+        function App() {
+            const [inputs, setInputs] = useState({
+                initialInvestment: 100000,
+                monthlyContribution: 5000,
+                years: 33,
+                simulations: 1000,
+                expectedReturn: 10,
+                volatility: 15,
+            });
+
+            const [results, setResults] = useState(null);
+
+            const calculateTotalInvestment = () => {
+                return inputs.initialInvestment + (inputs.monthlyContribution * 12 * inputs.years);
+            };
+
+            function runSimulation() {
+                const { initialInvestment, monthlyContribution, years, simulations, expectedReturn, volatility } = inputs;
+                const months = years * 12;
+                const meanReturn = expectedReturn / 100 / 12;
+                const stdDev = volatility / 100 / Math.sqrt(12);
+
+                const allPortfolios = new Array(simulations).fill(0).map(() => {
+                    const monthlyValues = [initialInvestment];
+                    let portfolio = initialInvestment;
+
+                    for (let month = 0; month < months; month++) {
+                        const u1 = Math.random();
+                        const u2 = Math.random();
+                        const randomReturn = 
+                            Math.sqrt(-2.0 * Math.log(u1)) * 
+                            Math.cos(2.0 * Math.PI * u2) * 
+                            stdDev + meanReturn;
+                        
+                        portfolio = portfolio * (1 + randomReturn) + monthlyContribution;
+                        monthlyValues.push(portfolio);
+                    }
+                    return monthlyValues;
+                });
+
+                const timeSeriesData = new Array(months + 1).fill(0).map((_, monthIndex) => {
+                    const monthValues = allPortfolios.map(portfolio => portfolio[monthIndex]);
+                    monthValues.sort((a, b) => a - b);
+                    return {
+                        month: monthIndex,
+                        conservative: monthValues[Math.floor(0.05 * monthValues.length)],
+                        median: monthValues[Math.floor(0.5 * monthValues.length)],
+                        optimistic: monthValues[Math.floor(0.95 * monthValues.length)],
+                    };
+                });
+
+                const finalValues = allPortfolios.map(portfolio => portfolio[portfolio.length - 1]);
+                finalValues.sort((a, b) => a - b);
+
+                const stats = {
+                    min: finalValues[Math.floor(0.05 * finalValues.length)],
+                    median: finalValues[Math.floor(0.5 * finalValues.length)],
+                    max: finalValues[Math.floor(0.95 * finalValues.length)],
+                };
+
+                const histogram = new Array(20).fill(0).map((_, i) => {
+                    const min = Math.min(...finalValues);
+                    const max = Math.max(...finalValues);
+                    const bucketSize = (max - min) / 20;
+                    const bucketMin = min + i * bucketSize;
+                    const bucketMax = min + (i + 1) * bucketSize;
+                    const count = finalValues.filter(v => v >= bucketMin && v < bucketMax).length;
+                    return {
+                        range: `${(bucketMin/1000000).toFixed(1)}M-${(bucketMax/1000000).toFixed(1)}M`,
+                        count,
+                    };
+                });
+
+                setResults({ stats, histogram, timeSeriesData });
+            }
+
+            const formatCurrency = (value) => {
+                return new Intl.NumberFormat('zh-TW', { 
+                    style: 'currency', 
+                    currency: 'TWD',
+                    maximumFractionDigits: 0 
+                }).format(value);
+            };
+
+            return (
+                <div className="max-w-6xl mx-auto p-4 space-y-6">
+                    <div className="bg-white rounded-lg shadow p-6 mb-6">
+                        <h1 className="text-3xl font-bold text-center mb-6">蒙地卡羅投資模擬器</h1>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">初始投資金額</label>
+                                <input 
+                                    type="number"
+                                    className="mt-1 block w-full rounded border-gray-300 p-2"
+                                    value={inputs.initialInvestment}
+                                    onChange={e => setInputs(prev => ({
+                                        ...prev,
+                                        initialInvestment: parseFloat(e.target.value)
+                                    }))}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">每月投入金額</label>
+                                <input
+                                    type="number"
+                                    className="mt-1 block w-full rounded border-gray-300 p-2"
+                                    value={inputs.monthlyContribution}
+                                    onChange={e => setInputs(prev => ({
+                                        ...prev,
+                                        monthlyContribution: parseFloat(e.target.value)
+                                    }))}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">投資年限</label>
+                                <input
+                                    type="number"
+                                    className="mt-1 block w-full rounded border-gray-300 p-2"
+                                    value={inputs.years}
+                                    onChange={e => setInputs(prev => ({
+                                        ...prev,
+                                        years: parseFloat(e.target.value)
+                                    }))}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">預期年化報酬率 (%)</label>
+                                <input
+                                    type="number"
+                                    className="mt-1 block w-full rounded border-gray-300 p-2"
+                                    value={inputs.expectedReturn}
+                                    onChange={e => setInputs(prev => ({
+                                        ...prev,
+                                        expectedReturn: parseFloat(e.target.value)
+                                    }))}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">年化波動率 (%)</label>
+                                <input
+                                    type="number"
+                                    className="mt-1 block w-full rounded border-gray-300 p-2"
+                                    value={inputs.volatility}
+                                    onChange={e => setInputs(prev => ({
+                                        ...prev,
+                                        volatility: parseFloat(e.target.value)
+                                    }))}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">模擬次數</label>
+                                <input
+                                    type="number"
+                                    className="mt-1 block w-full rounded border-gray-300 p-2"
+                                    value={inputs.simulations}
+                                    onChange={e => setInputs(prev => ({
+                                        ...prev,
+                                        simulations: parseInt(e.target.value)
+                                    }))}
+                                />
+                            </div>
+                        </div>
+                        <button 
+                            className="w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                            onClick={runSimulation}
+                        >
+                            執行模擬
+                        </button>
+                    </div>
+
+                    {results && (
+                        <div className="bg-white rounded-lg shadow p-6">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                                <div className="text-center">
+                                    <div className="text-sm font-medium text-gray-500">總投入金額</div>
+                                    <div className="text-2xl font-bold">
+                                        {formatCurrency(calculateTotalInvestment())}
+                                    </div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-sm font-medium text-gray-500">保守估計 (5%)</div>
+                                    <div className="text-2xl font-bold">
+                                        {formatCurrency(results.stats.min)}
+                                    </div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-sm font-medium text-gray-500">中位數</div>
+                                    <div className="text-2xl font-bold">
+                                        {formatCurrency(results.stats.median)}
+                                    </div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-sm font-medium text-gray-500">樂觀估計 (95%)</div>
+                                    <div className="text-2xl font-bold">
+                                        {formatCurrency(results.stats.max)}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mb-8">
+                                <h3 className="text-lg font-medium mb-4">投資組合價值變化</h3>
+                                <div style={{ width: '100%', height: 300 }}>
+                                    <LineChart data={results.timeSeriesData}>
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <XAxis 
+                                            dataKey="month" 
+                                            label={{ value: '月數', position: 'insideBottom', offset: -5 }}
+                                        />
+                                        <YAxis 
+                                            tickFormatter={(value) => `${(value/1000000).toFixed(1)}M`}
+                                            label={{ value: '投資組合價值', angle: -90, position: 'insideLeft' }}
+                                        />
+                                        <Tooltip 
+                                            formatter={(value) => formatCurrency(value)}
+                                            labelFormatter={(value) => `第 ${value} 個月`}
+                                        />
+                                        <Legend />
+                                        <Line type="monotone" dataKey="optimistic" name="樂觀估計 (95%)" stroke="#10B981" dot={false} />
+                                        <Line type="monotone" dataKey="median" name="中位數" stroke="#3B82F6" dot={false} />
+                                        <Line type="monotone" dataKey="conservative" name="保守估計 (5%)" stroke="#EF4444" dot={false} />
+                                    </LineChart>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-medium mb-4">最終價值分布</h3>
+                                <div style={{ width: '100%', height: 300 }}>
+                                    <BarChart data={results.histogram}>
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <XAxis 
+                                            dataKey="range" 
+                                            angle={-45}
+                                            textAnchor="end"
+                                            height={60}
+                                        />
+                                        <YAxis />
+                                        <Tooltip />
+                                        <Bar dataKey="count" fill="#4f46e5" name="次數" />
+                                    </BarChart>
+                                </div>
+                            </div>
+
+                            <div className="mt-6 bg-blue-50 border-l-4 border-blue-400 p-4">
+                                <div className="flex">
+                                    <div className="ml-3">
+                                        <p className="text-sm text-blue-700">
+                                            此模擬結果僅供參考，實際投資報酬可能會有顯著差異。請謹慎評估您的投資風險承受能力，並考慮尋求專業投資顧問的建議。
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
     </script>
 </body>
 </html>
